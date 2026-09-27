@@ -1,4 +1,17 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+let rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Safely handle if the user accidentally pasted "KEY=value" in the hosting platform's value field
+if (rawApiUrl.startsWith('VITE_API_URL=')) {
+  rawApiUrl = rawApiUrl.replace('VITE_API_URL=', '');
+}
+// Strip any accidental quotes
+rawApiUrl = rawApiUrl.replace(/^["']|["']$/g, '');
+// Remove trailing slash if present
+if (rawApiUrl.endsWith('/')) {
+  rawApiUrl = rawApiUrl.slice(0, -1);
+}
+
+const API_BASE_URL = rawApiUrl;
 
 class ApiClient {
   private getHeaders(): HeadersInit {
