@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     # Claude AI
     ANTHROPIC_API_KEY: str = Field(default="", description="Claude API key for server-side recommendations")
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default="", description="Google OAuth Client Secret")
+
+    # Email Verification Enforcement
+    ENABLE_EMAIL_VERIFICATION: bool = Field(
+        default=False, 
+        description="Set True to enforce verified email requirement before granting dashboard access"
+    )
+
     # CORS
     CORS_ORIGINS: List[str] | str = Field(
         default=[

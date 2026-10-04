@@ -5,10 +5,11 @@ from sqlalchemy import text
 from app.config import settings
 from app.database.session import get_db, engine
 from app.database.base import Base
+from app.database.init_db import init_db
 import app.models  # Ensure all models are registered
 
-# Create database tables if not existing
-Base.metadata.create_all(bind=engine)
+# Create database tables and apply migrations if not existing
+init_db()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

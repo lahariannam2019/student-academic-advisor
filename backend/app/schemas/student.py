@@ -19,6 +19,33 @@ class AuthResponse(BaseModel):
     profile_id: str
     student_name: Optional[str] = None
     needs_onboarding: bool
+    is_verified: bool = True
+    verification_sent: bool = False
+    message: Optional[str] = None
+
+
+class VerifyEmailRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    code: Optional[str] = None
+    token: Optional[str] = None
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
 
 
 class SubjectOnboardingInput(BaseModel):

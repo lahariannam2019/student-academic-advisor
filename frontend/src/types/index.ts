@@ -26,6 +26,9 @@ export interface AuthResponse {
   profile_id: string;
   student_name: string | null;
   needs_onboarding: boolean;
+  is_verified?: boolean;
+  verification_sent?: boolean;
+  message?: string | null;
 }
 
 export interface SubjectOnboardingInput {
