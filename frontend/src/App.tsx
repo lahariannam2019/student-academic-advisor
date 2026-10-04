@@ -11,31 +11,53 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { api } from './services/api';
 import type { StudentProfile } from './types';
 
+const getSafeStorageItem = (key: string): string | null => {
+  try {
+    const val = localStorage.getItem(key);
+    if (!val || val === 'undefined' || val === 'null') return null;
+    return val;
+  } catch {
+    return null;
+  }
+};
+
+const setSafeStorageItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+};
+
+const removeSafeStorageItem = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+};
+
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return Boolean(localStorage.getItem('access_token'));
+    return Boolean(getSafeStorageItem('access_token'));
   });
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(() => {
-    return localStorage.getItem('onboarding_completed') === 'true';
+    return getSafeStorageItem('onboarding_completed') === 'true';
   });
   const [studentName, setStudentName] = useState<string>(() => {
-    return localStorage.getItem('student_name') || 'Student';
+    return getSafeStorageItem('student_name') || 'Student';
   });
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
 
   // Verify active profile upon application mount
   useEffect(() => {
     const checkSession = async () => {
-      const token = localStorage.getItem('access_token');
+      const token = getSafeStorageItem('access_token');
       if (token) {
         try {
           const profile = await api.get<StudentProfile>('/api/auth/profile');
           if (profile && profile.name) {
             setStudentName(profile.name);
-            localStorage.setItem('student_name', profile.name);
+            setSafeStorageItem('student_name', profile.name);
             const isCompleted = Boolean(profile.onboarding_completed && profile.name && profile.college);
             setHasCompletedOnboarding(isCompleted);
-            localStorage.setItem('onboarding_completed', isCompleted ? 'true' : 'false');
+            setSafeStorageItem('onboarding_completed', isCompleted ? 'true' : 'false');
           } else {
             setHasCompletedOnboarding(false);
           }
@@ -43,9 +65,12 @@ export function App() {
         } catch (err) {
           console.warn('Session expired or invalid:', err);
           handleLogout();
+        } finally {
+          setInitialLoading(false);
         }
+      } else {
+        setInitialLoading(false);
       }
-      setInitialLoading(false);
     };
     checkSession();
   }, []);
@@ -54,16 +79,16 @@ export function App() {
     setIsAuthenticated(true);
     setStudentName(name || 'Student');
     setHasCompletedOnboarding(!needsOnboarding);
-    localStorage.setItem('onboarding_completed', !needsOnboarding ? 'true' : 'false');
+    setSafeStorageItem('onboarding_completed', !needsOnboarding ? 'true' : 'false');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('is_authenticated');
-    localStorage.removeItem('student_name');
-    localStorage.removeItem('onboarding_completed');
-    localStorage.removeItem('user_id');
-    localStorage.removeItem('profile_id');
+    removeSafeStorageItem('access_token');
+    removeSafeStorageItem('is_authenticated');
+    removeSafeStorageItem('student_name');
+    removeSafeStorageItem('onboarding_completed');
+    removeSafeStorageItem('user_id');
+    removeSafeStorageItem('profile_id');
     setIsAuthenticated(false);
     setHasCompletedOnboarding(false);
     setStudentName('Student');
@@ -71,15 +96,15 @@ export function App() {
 
   const handleOnboardingComplete = (completedName: string) => {
     setStudentName(completedName);
-    localStorage.setItem('student_name', completedName);
-    localStorage.setItem('onboarding_completed', 'true');
+    setSafeStorageItem('student_name', completedName);
+    setSafeStorageItem('onboarding_completed', 'true');
     setHasCompletedOnboarding(true);
   };
 
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
