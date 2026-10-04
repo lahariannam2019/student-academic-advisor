@@ -82,6 +82,14 @@ def test_cors_actual_post_signup_and_login():
     signup_data = signup_res.json()
     assert "access_token" in signup_data
 
+    # Verify email
+    from app.database.session import SessionLocal
+    from app.models.user import User
+    db = SessionLocal()
+    u = db.query(User).filter(User.email == email).first()
+    client.post("/api/auth/verify-email", json={"email": email, "code": u.verification_code})
+    db.close()
+
     # 3. Actual Login POST
     login_res = client.post(
         "/api/auth/login",

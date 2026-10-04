@@ -7,6 +7,9 @@ client = TestClient(app)
 
 def get_authenticated_student(email_prefix: str = "student"):
     """Helper to create a fresh registered user and return auth headers."""
+    from app.database.session import SessionLocal
+    from app.models.user import User
+
     unique_id = uuid.uuid4().hex[:8]
     email = f"{email_prefix}_{unique_id}@test.edu"
     password = "SecurePassword123!"
@@ -16,12 +19,22 @@ def get_authenticated_student(email_prefix: str = "student"):
         json={"email": email, "password": password},
     )
     assert signup_res.status_code == 201, f"Signup failed: {signup_res.text}"
+
+    # Verify email
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == email).first()
+    client.post("/api/auth/verify-email", json={"email": email, "code": user.verification_code})
+    db.close()
+
     token = signup_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     return headers, signup_res.json()
 
 
 def test_signup_and_login_flow():
+    from app.database.session import SessionLocal
+    from app.models.user import User
+
     unique_id = uuid.uuid4().hex[:8]
     email = f"user_{unique_id}@university.edu"
     password = "MyPassword2026!"
@@ -37,6 +50,12 @@ def test_signup_and_login_flow():
     assert "user_id" in signup_data
     assert "profile_id" in signup_data
     assert signup_data["needs_onboarding"] is True
+
+    # Verify Email
+    db = SessionLocal()
+    user = db.query(User).filter(User.email == email).first()
+    client.post("/api/auth/verify-email", json={"email": email, "code": user.verification_code})
+    db.close()
 
     # 2. Login
     login_res = client.post(

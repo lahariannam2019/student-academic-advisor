@@ -35,10 +35,14 @@ class Settings(BaseSettings):
     # Claude AI
     ANTHROPIC_API_KEY: str = Field(default="", description="Claude API key for server-side recommendations")
 
+    # Resend Production Email Delivery
+    RESEND_API_KEY: str = Field(default="", description="Resend API key for production email delivery")
+    EMAILS_FROM_EMAIL: str = Field(default="Student Academic Advisor <onboarding@resend.dev>", description="Verified sender email for Resend delivery")
+
     # Email Verification Enforcement
     ENABLE_EMAIL_VERIFICATION: bool = Field(
-        default=False, 
-        description="Set True to enforce verified email requirement before granting dashboard access"
+        default=True, 
+        description="Set True to enforce verified email requirement before granting access"
     )
 
     # CORS

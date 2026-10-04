@@ -95,7 +95,7 @@ def sign_up(payload: UserSignUpRequest, db: Session = Depends(get_db)):
         needs_onboarding=True,
         is_verified=False,
         verification_sent=True,
-        message=f"Verification email sent to {email_clean}. Please check your inbox or enter code {v_code}.",
+        message=f"Verification email sent to {email_clean}. Please check your inbox for your 6-digit code.",
     )
 
 
@@ -112,11 +112,11 @@ def log_in(payload: UserLoginRequest, db: Session = Depends(get_db)):
             detail="Invalid email or password.",
         )
 
-    # Check email verification enforcement if enabled
-    if settings.ENABLE_EMAIL_VERIFICATION and not user.is_verified:
+    # Check email verification enforcement
+    if not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your email address is unverified. Please verify your email to continue.",
+            detail="Your email address is unverified. Please verify your email to log in.",
         )
 
     profile = user.profile
@@ -188,7 +188,7 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
 
 @router.post("/resend-verification")
 def resend_verification(payload: ResendVerificationRequest, db: Session = Depends(get_db)):
-    """Resend verification code and token to user."""
+    """Resend verification code and token to user with 60-second rate limiting."""
     email_clean = str(payload.email).strip().lower()
     user = db.query(User).filter(User.email == email_clean).first()
     if not user:
@@ -200,17 +200,25 @@ def resend_verification(payload: ResendVerificationRequest, db: Session = Depend
     if user.is_verified:
         return {"status": "success", "message": "Email is already verified."}
 
+    # Rate limiting: allow resend only after 60 seconds of last update
+    if user.updated_at and (datetime.utcnow() - user.updated_at).total_seconds() < 60:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Please wait 60 seconds before requesting another verification code.",
+        )
+
     v_code = generate_verification_code()
     v_token = generate_verification_token()
     user.verification_code = v_code
     user.verification_token = v_token
     user.verification_token_expires = datetime.utcnow() + timedelta(hours=24)
+    user.updated_at = datetime.utcnow()
     db.commit()
 
     send_verification_email(email=email_clean, code=v_code, token=v_token)
     return {
         "status": "success",
-        "message": f"Verification email resent to {email_clean}. Code: {v_code}",
+        "message": f"Verification email resent to {email_clean}. Please check your inbox.",
     }
 
 
