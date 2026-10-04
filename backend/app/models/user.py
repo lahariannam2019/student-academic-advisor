@@ -41,7 +41,6 @@ class User(Base):
     verification_token_expires = Column(DateTime, nullable=True)
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime, nullable=True)
-    google_id = Column(String(255), unique=True, index=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

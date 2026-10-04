@@ -27,7 +27,6 @@ def run_migrations():
         ("verification_token_expires", "DATETIME"),
         ("reset_token", "VARCHAR(255)"),
         ("reset_token_expires", "DATETIME"),
-        ("google_id", "VARCHAR(255)"),
     ]
     with engine.connect() as conn:
         for col_name, col_type in new_columns:

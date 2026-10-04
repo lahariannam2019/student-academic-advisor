@@ -1,8 +1,6 @@
 import uuid
-from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import app
-from app.models.user import User
 
 client = TestClient(app)
 
@@ -73,58 +71,6 @@ def test_email_verification_flow():
     assert "resent" in resend_res.json()["message"]
 
 
-def test_google_authentication_new_user_and_account_creation():
-    mock_id_info = {
-        "sub": "google_sub_id_1001",
-        "email": "new_google_student@university.edu",
-        "email_verified": True,
-        "name": "Google Student One",
-    }
-
-    with patch("app.api.auth.verify_google_id_token", return_value=mock_id_info):
-        google_res = client.post("/api/auth/google", json={"credential": "mock_valid_google_credential_1"})
-        assert google_res.status_code == 200
-        data = google_res.json()
-        assert data["access_token"] is not None
-        assert data["needs_onboarding"] is True
-        assert data["is_verified"] is True
-        assert data["student_name"] == "Google Student One"
-
-
-def test_google_authentication_account_linking_existing_email():
-    email = get_random_email("linkgoogle")
-    password = "Password123!"
-
-    # First register with email & password
-    signup_res = client.post("/api/auth/signup", json={"email": email, "password": password})
-    assert signup_res.status_code == 201
-    original_user_id = signup_res.json()["user_id"]
-
-    # Google Sign-In with same email links the account without creating duplicate
-    mock_id_info = {
-        "sub": "google_sub_id_2002",
-        "email": email,
-        "email_verified": True,
-        "name": "Linked Google User",
-    }
-
-    with patch("app.api.auth.verify_google_id_token", return_value=mock_id_info):
-        google_res = client.post("/api/auth/google", json={"credential": "mock_valid_google_credential_2"})
-        assert google_res.status_code == 200
-        linked_data = google_res.json()
-        assert linked_data["user_id"] == original_user_id
-        assert linked_data["is_verified"] is True
-
-
-def test_google_authentication_failure_invalid_token():
-    with patch("app.api.auth.verify_google_id_token", side_effect=ValueError("Invalid Google token")):
-        try:
-            res = client.post("/api/auth/google", json={"credential": "invalid_token"})
-            assert res.status_code in [400, 401]
-        except Exception:
-            pass
-
-
 def test_prevent_duplicate_email_signup():
     email = get_random_email("dupesignup")
     res1 = client.post("/api/auth/signup", json={"email": email, "password": "Password123!"})
@@ -136,10 +82,11 @@ def test_prevent_duplicate_email_signup():
     assert "already exists" in res2.json()["detail"]
 
 
-def test_student_data_isolation_between_email_and_google():
-    # User A (Email Signup)
+def test_student_data_isolation():
+    # User A
     email_a = get_random_email("user_a")
-    headers_a = {"Authorization": f"Bearer {client.post('/api/auth/signup', json={'email': email_a, 'password': 'Pass123!'}).json()['access_token']}"}
+    token_a = client.post('/api/auth/signup', json={'email': email_a, 'password': 'Pass123!'}).json()['access_token']
+    headers_a = {"Authorization": f"Bearer {token_a}"}
     
     # Onboard User A
     client.post(
@@ -156,16 +103,10 @@ def test_student_data_isolation_between_email_and_google():
         headers=headers_a,
     )
 
-    # User B (Google Signup)
-    mock_id_info_b = {
-        "sub": "google_sub_user_b",
-        "email": get_random_email("user_b"),
-        "email_verified": True,
-        "name": "User Beta",
-    }
-    with patch("app.api.auth.verify_google_id_token", return_value=mock_id_info_b):
-        token_b = client.post("/api/auth/google", json={"credential": "mock_credential_b"}).json()["access_token"]
-        headers_b = {"Authorization": f"Bearer {token_b}"}
+    # User B
+    email_b = get_random_email("user_b")
+    token_b = client.post('/api/auth/signup', json={'email': email_b, 'password': 'Pass123!'}).json()['access_token']
+    headers_b = {"Authorization": f"Bearer {token_b}"}
 
     client.post(
         "/api/auth/onboarding",

@@ -1,6 +1,4 @@
 import json
-import urllib.request
-import urllib.parse
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -24,7 +22,6 @@ from app.schemas.student import (
     ResendVerificationRequest,
     ForgotPasswordRequest,
     ResetPasswordRequest,
-    GoogleAuthRequest,
     OnboardingCompleteRequest,
     StudentProfileResponse,
     StudentProfileUpdate,
@@ -256,137 +253,6 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
     return {"status": "success", "message": "Password successfully reset. You can now log in."}
 
-
-def verify_google_id_token(credential: str) -> dict:
-    """
-    Verify Google OAuth ID token server-side.
-    Attempts google-auth library if installed, falls back to Google tokeninfo API endpoint.
-    """
-    # 1. Try google-auth library
-    try:
-        from google.oauth2 import id_token as google_id_token
-        from google.auth.transport import requests as google_requests
-
-        id_info = google_id_token.verify_oauth2_token(
-            credential,
-            google_requests.Request(),
-            audience=settings.GOOGLE_CLIENT_ID if settings.GOOGLE_CLIENT_ID else None,
-            clock_skew_in_seconds=10
-        )
-        return id_info
-    except Exception as e:
-        pass
-
-    # 2. Fallback to Google tokeninfo HTTP endpoint
-    try:
-        url = f"https://oauth2.googleapis.com/tokeninfo?id_token={urllib.parse.quote(credential)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "StudentAcademicAdvisor/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            if resp.status == 200:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data
-    except Exception as ex:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired Google authentication token: {str(ex)}",
-        )
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Unable to verify Google identity.",
-    )
-
-
-@router.post("/google", response_model=AuthResponse)
-def google_sign_in(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
-    """
-    Server-side verified Google Sign-In with automatic account creation and account linking.
-    """
-    if not payload.credential:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google authentication token (credential) is required.",
-        )
-
-    id_info = verify_google_id_token(payload.credential)
-
-    google_sub = id_info.get("sub")
-    email = id_info.get("email", "").lower().strip()
-    email_verified = id_info.get("email_verified", True)
-    google_name = id_info.get("name", "") or id_info.get("given_name", "")
-
-    if not email or not google_sub:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google account did not return a verified email address.",
-        )
-
-    if not email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google email address is not verified by Google.",
-        )
-
-    # 1. Check if user already exists by google_id
-    user = db.query(User).filter(User.google_id == google_sub).first()
-
-    # 2. If not found by google_id, check by email for Account Linking
-    if not user:
-        user = db.query(User).filter(User.email == email).first()
-        if user:
-            # Safely link existing email/password account with Google ID
-            user.google_id = google_sub
-            user.is_verified = True
-            db.commit()
-
-    # 3. If user still does not exist, create new Google Student account
-    if not user:
-        user = User(
-            email=email,
-            password_hash=None,  # Google accounts do not have plaintext password hashes
-            is_verified=True,    # Google verified the email address
-            google_id=google_sub,
-        )
-        db.add(user)
-        db.flush()
-
-        profile = StudentProfile(
-            user_id=user.id,
-            name=google_name,
-            college="",
-            program="",
-            department="",
-            current_year=1,
-            current_semester=1,
-            grading_scale="10_point",
-            attendance_minimum_pct=75.0,
-            target_cgpa=None,
-            daily_study_hours=2.0,
-            onboarding_completed=False,
-        )
-        db.add(profile)
-        db.commit()
-        db.refresh(user)
-        db.refresh(profile)
-    else:
-        profile = user.profile
-        if not profile:
-            profile = StudentProfile(user_id=user.id, name=google_name)
-            db.add(profile)
-            db.commit()
-            db.refresh(profile)
-
-    token = create_access_token(user_id=user.id, profile_id=profile.id)
-    needs_onboarding = not profile.onboarding_completed or not profile.name or not profile.college
-
-    return AuthResponse(
-        access_token=token,
-        user_id=user.id,
-        profile_id=profile.id,
-        student_name=profile.name,
-        needs_onboarding=needs_onboarding,
-        is_verified=True,
-    )
 
 
 @router.post("/onboarding", response_model=StudentProfileResponse)

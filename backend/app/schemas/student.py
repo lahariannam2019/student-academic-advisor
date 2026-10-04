@@ -43,10 +43,6 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
-class GoogleAuthRequest(BaseModel):
-    credential: str
-
-
 
 class SubjectOnboardingInput(BaseModel):
     code: str
